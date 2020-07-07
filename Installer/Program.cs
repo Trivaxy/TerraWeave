@@ -1,12 +1,32 @@
-﻿using System;
+using System;
+using System.Windows.Forms;
 
-namespace TerraWeave.Installer
+namespace Installer
 {
-    class Program
+    public static class Program
     {
-        static void Main(string[] args)
+        private static readonly Version version = new Version(1, 0, 0, 0);
+
+        [STAThread]
+        static void Main()
         {
-            Console.WriteLine("Hello World!");
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            Form form = new InstallerForm
+            {
+                Text = $"TerraWeave Installer v{version}"
+            };
+
+            form.SetBounds(200, 200, 500, 180);
+
+            form.FormBorderStyle = FormBorderStyle.FixedSingle;
+
+            form.MaximizeBox = false;
+            form.MinimizeBox = false;
+
+            Application.Run(form);
         }
     }
 }
