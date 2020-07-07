@@ -1,6 +1,7 @@
 ﻿using Mono.Cecil;
-using System;
+using Mono.Cecil.Cil;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Terraweave.Common
 {
@@ -79,6 +80,43 @@ namespace Terraweave.Common
 				);
 
 			return type;
+		}
+
+		public static void SerializeMethodDefinition(MethodDefinition method, BinaryWriter writer)
+		{
+			byte[] methodBytes = ObjectToByteArray(method);
+
+			writer.Write(methodBytes.Length);
+			writer.Write(methodBytes);
+		}
+
+		public static MethodDefinition DeserializeMethodDefinition(BinaryReader reader)
+		{
+			int byteCount = reader.ReadInt32();
+
+			return ByteArrayToObject(reader.ReadBytes(byteCount)) as MethodDefinition;
+		}
+
+		private static byte[] ObjectToByteArray(object obj)
+		{
+			BinaryFormatter bf = new BinaryFormatter();
+			using (var ms = new MemoryStream())
+			{
+				bf.Serialize(ms, obj);
+				return ms.ToArray();
+			}
+		}
+
+		private static object ByteArrayToObject(byte[] arrBytes)
+		{
+			using (var memStream = new MemoryStream())
+			{
+				var binForm = new BinaryFormatter();
+				memStream.Write(arrBytes, 0, arrBytes.Length);
+				memStream.Seek(0, SeekOrigin.Begin);
+				var obj = binForm.Deserialize(memStream);
+				return obj;
+			}
 		}
 	}
 }
