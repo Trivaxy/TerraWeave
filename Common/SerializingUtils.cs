@@ -12,7 +12,7 @@ namespace Terraweave.Common
 		public static void SerializeTypeDefinition(TypeDefinition type, BinaryWriter writer)
 		{
 			writer.Write(type.FullName);
-			writer.Write(type.IsPublic);
+			writer.Write((uint)type.Attributes);
 			writer.Write(type.Fields.Count);
 
 			foreach (FieldDefinition field in type.Fields)
@@ -24,7 +24,7 @@ namespace Terraweave.Common
 			string typeName = reader.ReadString();
 			string @namespace = typeName.Split('.')[0];
 
-			TypeAttributes attributes = reader.ReadBoolean() ? TypeAttributes.Public : TypeAttributes.NotPublic;
+			TypeAttributes attributes = (TypeAttributes)reader.ReadUInt32();
 
 			TypeDefinition type = new TypeDefinition(
 				@namespace,
@@ -46,19 +46,14 @@ namespace Terraweave.Common
 		public static void SerializeFieldDefinition(FieldDefinition field, BinaryWriter writer)
 		{
 			writer.Write(field.Name);
-			writer.Write(field.IsPublic);
-			writer.Write(field.IsStatic);
+			writer.Write((ushort)field.Attributes);
 			SerializeTypeReference(field.FieldType, writer);
 		}
 
 		public static FieldDefinition DeserializeFieldDefinition(BinaryReader reader)
 		{
 			string fieldName = reader.ReadString();
-
-			FieldAttributes attributes = reader.ReadBoolean() ? FieldAttributes.Public : FieldAttributes.Private;
-
-			if (reader.ReadBoolean())
-				attributes |= FieldAttributes.Static;
+			FieldAttributes attributes = (FieldAttributes)reader.ReadUInt16();
 
 			FieldDefinition field = new FieldDefinition(
 				fieldName,
@@ -69,10 +64,7 @@ namespace Terraweave.Common
 			return field;
 		}
 
-		public static void SerializeTypeReference(TypeReference type, BinaryWriter writer)
-		{
-			writer.Write(type.FullName);
-		}
+		public static void SerializeTypeReference(TypeReference type, BinaryWriter writer) => writer.Write(type.FullName);
 
 		public static TypeReference DeserializeTypeReference(BinaryReader reader)
 		{

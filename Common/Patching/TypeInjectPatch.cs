@@ -20,12 +20,6 @@ namespace Terraweave.Common.Patching
 			return this;
 		}
 
-		public override void Apply(ModuleDefinition terraria)
-		{
-			foreach (FieldReference field in InjectedType.Fields)
-				terraria.ImportReference(field.FieldType);
-
-			terraria.Types.Add(InjectedType);
-		}
+		public override void Apply(ModuleDefinition terraria) => terraria.Types.Add(InjectedType);
 	}
 }
