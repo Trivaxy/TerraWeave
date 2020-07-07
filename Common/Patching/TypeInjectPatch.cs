@@ -1,42 +1,31 @@
-﻿using Common;
-using Mono.Cecil;
+﻿using Mono.Cecil;
 using System.IO;
 
 namespace Terraweave.Common.Patching
 {
-	public class TypeInjectPatch : Patch<TypeInjectPatch>
+	public class TypeInjectPatch : Patch
 	{
 		public TypeDefinition InjectedType;
 
-		public TypeInjectPatch() => InjectedType = null;
+		public TypeInjectPatch(BinaryReader reader) => DeserializePatch(reader);
 
 		public TypeInjectPatch(TypeDefinition type) => InjectedType = type;
 
-		public override byte[] SerializePatch()
+		public override void SerializePatch(BinaryWriter writer)
+			=> SerializingUtils.SerializeTypeDefinition(InjectedType, writer);
+
+		public override Patch DeserializePatch(BinaryReader reader)
 		{
-			using (MemoryStream stream = new MemoryStream())
-			{
-				using (BinaryWriter writer = new BinaryWriter(stream))
-				{
-					writer.Write(InjectedType.FullName);
-					writer.Write(InjectedType.Fields.Count);
-
-					foreach (FieldDefinition field in InjectedType.Fields)
-						writer.Write(SerializingUtils.SerializeFieldDefinition(field));
-				}
-
-				return stream.ToArray();
-			}
-		}
-
-		public override TypeInjectPatch DeserializePatch(byte[] data)
-		{
-			throw new System.NotImplementedException();
+			InjectedType = SerializingUtils.DeserializeTypeDefinition(reader);
+			return this;
 		}
 
 		public override void Apply(ModuleDefinition terraria)
 		{
+			foreach (FieldReference field in InjectedType.Fields)
+				terraria.ImportReference(field.FieldType);
 
+			terraria.Types.Add(InjectedType);
 		}
 	}
 }

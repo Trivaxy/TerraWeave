@@ -1,14 +1,13 @@
 ﻿using Mono.Cecil;
+using System.IO;
 
 namespace Terraweave.Common.Patching
 {
-	public abstract class Patch<T>
+	public abstract class Patch
 	{
-		public Patch() { }
+		public abstract void SerializePatch(BinaryWriter writer);
 
-		public abstract byte[] SerializePatch();
-
-		public abstract T DeserializePatch(byte[] data);
+		public abstract Patch DeserializePatch(BinaryReader reader);
 
 		public abstract void Apply(ModuleDefinition terraria);
 	}
