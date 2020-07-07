@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Differ": {
+      "commandName": "Project",
+      "commandLineArgs": "Terraria.exe TerrariaModified.exe"
+    }
+  }
+}
