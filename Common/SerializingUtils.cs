@@ -109,9 +109,10 @@ namespace Terraweave.Common
 				reader.ReadString(),
 				(FieldAttributes)reader.ReadUInt16(),
 				DeserializeTypeReference(reader)
-				);
-
-			field.MetadataToken = new MetadataToken(reader.ReadUInt32());
+				)
+			{
+				MetadataToken = new MetadataToken(reader.ReadUInt32())
+			};
 
 			return field;
 		}
@@ -127,7 +128,7 @@ namespace Terraweave.Common
 			string @namespace = reader.ReadString();
 			string typeName = reader.ReadString();
 
-			ModuleDefinition module = null;
+			ModuleDefinition module;
 
 			if (@namespace.StartsWith("System"))
 				module = ModuleUtils.SystemModule;
@@ -196,9 +197,10 @@ namespace Terraweave.Common
 				reader.ReadString(),
 				 (MethodAttributes)reader.ReadUInt16(),
 				 DeserializeTypeReference(reader)
-				);
-
-			method.MetadataToken = new MetadataToken(reader.ReadUInt32());
+				)
+			{
+				MetadataToken = new MetadataToken(reader.ReadUInt32())
+			};
 
 			int parameterCount = reader.ReadInt32();
 
@@ -232,12 +234,13 @@ namespace Terraweave.Common
 				reader.ReadString(),
 				(PropertyAttributes)reader.ReadUInt16(),
 				DeserializeTypeReference(reader)
-				);
+				)
+			{
+				MetadataToken = new MetadataToken(reader.ReadUInt32()),
 
-			property.MetadataToken = new MetadataToken(reader.ReadUInt32());
-
-			property.GetMethod = DeserializeMethodDefinition(reader);
-			property.SetMethod = DeserializeMethodDefinition(reader);
+				GetMethod = DeserializeMethodDefinition(reader),
+				SetMethod = DeserializeMethodDefinition(reader)
+			};
 
 			return property;
 		}
