@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 
 namespace Terraweave.Common
 {
@@ -12,7 +11,7 @@ namespace Terraweave.Common
 		public static ModuleDefinition TerrariaModule;
 		public static ModuleDefinition SystemModule;
 
-		public static Dictionary<string, ModuleDefinition> XnaModules;
+		public static Dictionary<XnaDirectory, ModuleDefinition> XnaModules;
 
 		private static readonly string[] xnaDirectories = new string[]
 		{
@@ -27,9 +26,9 @@ namespace Terraweave.Common
 			TerrariaModule = terraria;
 			SystemModule = TerrariaModule.TypeSystem.CoreLibrary as ModuleDefinition;
 
-			XnaModules = new Dictionary<string, ModuleDefinition>();
+			XnaModules = new Dictionary<XnaDirectory, ModuleDefinition>();
 
-			foreach (string xnaDirectory in xnaDirectories)
+			for (int i = 0; i < 4; i++)
 			{
 				string finalDirectory = Directory.EnumerateDirectories(
 					Environment.ExpandEnvironmentVariables(
@@ -38,12 +37,20 @@ namespace Terraweave.Common
 						"Microsoft.NET",
 						"assembly",
 						"GAC_32",
-						xnaDirectory)
+						xnaDirectories[i])
 						))
 						.First();
 
-				XnaModules.Add(xnaDirectory, ModuleDefinition.ReadModule(finalDirectory));
+				XnaModules.Add((XnaDirectory)i, ModuleDefinition.ReadModule(finalDirectory));
 			}
+		}
+
+		public enum XnaDirectory 
+		{ 
+			XnaFramework,
+			XnaFrameworkDotGame,
+			XnaFrameworkDotGraphics,
+			XnaFrameworkDotXact
 		}
 	}
 }
