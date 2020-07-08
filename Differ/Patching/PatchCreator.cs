@@ -60,26 +60,32 @@ namespace Terraweave.Differ.Patching
 
 			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
 			{
+				string basePath = Environment.ExpandEnvironmentVariables(
+					Path.Combine(
+					"%WINDIR%",
+					"Microsoft.NET",
+					"assembly",
+					"GAC_32"));
+
+				string mscorlibDirectory = Directory.EnumerateDirectories(
+					Path.Combine(basePath, "mscorlib"))
+					.First();
+
+				resolver.AddSearchDirectory(mscorlibDirectory);
+
 				string[] xnaDirectories = new string[]
 				{
-				"Microsoft.Xna.Framework",
-				"Microsoft.Xna.Framework.Game",
-				"Microsoft.Xna.Framework.Graphics",
-				"Microsoft.Xna.Framework.Xact"
+					"Microsoft.Xna.Framework",
+					"Microsoft.Xna.Framework.Game",
+					"Microsoft.Xna.Framework.Graphics",
+					"Microsoft.Xna.Framework.Xact"
 				};
 
 				foreach (string xnaDirectory in xnaDirectories)
 				{
 					string finalDirectory = Directory.EnumerateDirectories(
-						Environment.ExpandEnvironmentVariables(
-							Path.Combine(
-							"%WINDIR%",
-							"Microsoft.NET",
-							"assembly",
-							"GAC_32",
-							xnaDirectory)
-							))
-							.First();
+						Path.Combine(basePath, xnaDirectory)
+						).First();
 
 					resolver.AddSearchDirectory(finalDirectory);
 				}
