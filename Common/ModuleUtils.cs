@@ -45,36 +45,5 @@ namespace Terraweave.Common
 				XnaModules.Add(xnaDirectory, ModuleDefinition.ReadModule(finalDirectory));
 			}
 		}
-
-		public static ReaderParameters DefaultParameters = new ReaderParameters()
-		{
-			AssemblyResolver = GetAssemblyResolver(),
-		};
-
-		public static IAssemblyResolver GetAssemblyResolver()
-		{
-			DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
-
-			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-			{
-				foreach (string xnaDirectory in xnaDirectories)
-				{
-					string finalDirectory = Directory.EnumerateDirectories(
-						Environment.ExpandEnvironmentVariables(
-							Path.Combine(
-							"%WINDIR%",
-							"Microsoft.NET",
-							"assembly",
-							"GAC_32",
-							xnaDirectory)
-							))
-							.First();
-
-					resolver.AddSearchDirectory(finalDirectory);
-				}
-			}
-
-			return resolver;
-		}
 	}
 }
