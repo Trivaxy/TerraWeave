@@ -1,18 +1,15 @@
 ﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 
 namespace Terraweave.Common
 {
-	// TODO: make all forms of type serialization accommodate generics and more access modifiers
 	public static class SerializingUtils
 	{
-		public static ModuleDefinition TerrariaModule;
-
 		public static ReadOnlyDictionary<Code, OpCode> CodeToOpCode = new ReadOnlyDictionary<Code, OpCode>(
 			typeof(OpCodes)
 			.GetFields()
@@ -27,10 +24,19 @@ namespace Terraweave.Common
 			field => (OpCode)field.GetValue(null))
 			);
 
+		// TODO: make typedefinitions accommodate generics
 		public static void SerializeTypeDefinition(TypeDefinition type, BinaryWriter writer)
 		{
 			writer.Write(type.FullName);
 			writer.Write((uint)type.Attributes);
+
+			bool hasParent = !type.IsInterface && type.BaseType.FullName != "System.Object";
+			writer.Write(hasParent);
+
+			if (hasParent)
+				SerializeTypeReference(type.BaseType, writer);
+
+			writer.Write(type.MetadataToken.RID);
 
 			writer.Write(type.Fields.Count);
 
@@ -41,6 +47,11 @@ namespace Terraweave.Common
 
 			foreach (MethodDefinition method in type.Methods)
 				SerializeMethodDefinition(method, writer);
+
+			writer.Write(type.Properties.Count);
+
+			foreach (PropertyDefinition property in type.Properties)
+				SerializePropertyDefinition(property, writer);
 		}
 
 		public static TypeDefinition DeserializeTypeDefinition(BinaryReader reader)
@@ -56,6 +67,15 @@ namespace Terraweave.Common
 				attributes
 				);
 
+			if (reader.ReadBoolean())
+				type.BaseType = DeserializeTypeReference(reader);
+			else if (type.IsInterface)
+				type.BaseType = null;
+			else
+				type.BaseType = ModuleUtils.TerrariaModule.ImportReference(typeof(object));
+
+			type.MetadataToken = new MetadataToken(reader.ReadUInt32());
+
 			int fieldCount = reader.ReadInt32();
 
 			for (int i = 0; i < fieldCount; i++)
@@ -66,6 +86,11 @@ namespace Terraweave.Common
 			for (int i = 0; i < methodCount; i++)
 				type.Methods.Add(DeserializeMethodDefinition(reader));
 
+			int propertyCount = reader.ReadInt32();
+
+			for (int i = 0; i < propertyCount; i++)
+				type.Properties.Add(DeserializePropertyDefinition(reader));
+
 			return type;
 		}
 
@@ -74,37 +99,48 @@ namespace Terraweave.Common
 			writer.Write(field.Name);
 			writer.Write((ushort)field.Attributes);
 			SerializeTypeReference(field.FieldType, writer);
+			
+			writer.Write(field.MetadataToken.RID);
 		}
 
 		public static FieldDefinition DeserializeFieldDefinition(BinaryReader reader)
 		{
-			string fieldName = reader.ReadString();
-			FieldAttributes attributes = (FieldAttributes)reader.ReadUInt16();
-
 			FieldDefinition field = new FieldDefinition(
-				fieldName,
-				attributes,
+				reader.ReadString(),
+				(FieldAttributes)reader.ReadUInt16(),
 				DeserializeTypeReference(reader)
 				);
+
+			field.MetadataToken = new MetadataToken(reader.ReadUInt32());
 
 			return field;
 		}
 
-		public static void SerializeTypeReference(TypeReference type, BinaryWriter writer) => writer.Write(type.FullName);
+		public static void SerializeTypeReference(TypeReference type, BinaryWriter writer)
+		{
+			writer.Write(type.Namespace);
+			writer.Write(type.Name);
+		}
 
 		public static TypeReference DeserializeTypeReference(BinaryReader reader)
 		{
+			string @namespace = reader.ReadString();
 			string typeName = reader.ReadString();
-			string @namespace = typeName.Split('.')[0];
+
+			ModuleDefinition module = null;
+
+			if (@namespace.StartsWith("System"))
+				module = ModuleUtils.SystemModule;
+			else
+				module = ModuleDefinition.ReadModule(@namespace);
 
 			TypeReference type = new TypeReference(
 				@namespace,
-				typeName.Substring(@namespace.Length + 1),
-				TerrariaModule,
-				TerrariaModule
-				);
+				typeName,
+				module,
+				ModuleUtils.TerrariaModule);
 
-			return TerrariaModule.ImportReference(type);
+			return type;
 		}
 
 		public static void SerializeMethodReference(MethodReference method, BinaryWriter writer)
@@ -115,26 +151,33 @@ namespace Terraweave.Common
 		}
 
 		public static MethodReference DeserializeMethodReference(BinaryReader reader)
-			=> TerrariaModule.ImportReference(new MethodReference(
+			=> new MethodReference(
 				reader.ReadString(),
 				DeserializeTypeReference(reader),
 				DeserializeTypeReference(reader)
-				));
+				);
 
 		public static void SerializeFieldReference(FieldReference field, BinaryWriter writer)
 		{
 			writer.Write(field.FullName);
 			SerializeTypeReference(field.FieldType, writer);
+			SerializeTypeReference(field.DeclaringType, writer);
 		}
 
 		public static FieldReference DeserializeFieldReference(BinaryReader reader)
-			=> TerrariaModule.ImportReference(new FieldReference(reader.ReadString(), DeserializeTypeReference(reader)));
+			=> new FieldReference(
+				reader.ReadString(),
+				DeserializeTypeReference(reader),
+				DeserializeTypeReference(reader)
+				);
 
 		public static void SerializeMethodDefinition(MethodDefinition method, BinaryWriter writer)
 		{
 			writer.Write(method.Name);
 			writer.Write((ushort)method.Attributes);
 			SerializeTypeReference(method.ReturnType, writer);
+
+			writer.Write(method.MetadataToken.RID);
 
 			writer.Write(method.Parameters.Count);
 
@@ -155,6 +198,8 @@ namespace Terraweave.Common
 				 DeserializeTypeReference(reader)
 				);
 
+			method.MetadataToken = new MetadataToken(reader.ReadUInt32());
+
 			int parameterCount = reader.ReadInt32();
 
 			for (int i = 0; i < parameterCount; i++)
@@ -168,12 +213,41 @@ namespace Terraweave.Common
 			return method;
 		}
 
+		public static void SerializePropertyDefinition(PropertyDefinition property, BinaryWriter writer)
+		{
+			writer.Write(property.Name);
+			writer.Write((ushort)property.Attributes);
+			SerializeTypeReference(property.PropertyType, writer);
+
+			writer.Write(property.MetadataToken.RID);
+
+			SerializeMethodDefinition(property.GetMethod, writer);
+			SerializeMethodDefinition(property.SetMethod, writer);
+
+		}
+
+		public static PropertyDefinition DeserializePropertyDefinition(BinaryReader reader)
+		{
+			PropertyDefinition property = new PropertyDefinition(
+				reader.ReadString(),
+				(PropertyAttributes)reader.ReadUInt16(),
+				DeserializeTypeReference(reader)
+				);
+
+			property.MetadataToken = new MetadataToken(reader.ReadUInt32());
+
+			property.GetMethod = DeserializeMethodDefinition(reader);
+			property.SetMethod = DeserializeMethodDefinition(reader);
+
+			return property;
+		}
+
 		public static void SerializeInstruction(Instruction instruction, BinaryWriter writer)
 		{
 			Code opCode = instruction.OpCode.Code;
 			OperandType operandType = instruction.OpCode.OperandType;
 			object operand = instruction.Operand;
-
+			
 			writer.Write((int)opCode);
 			writer.Write((int)operandType);
 

@@ -17,12 +17,10 @@ namespace Terraweave.Differ.Patching
 			if (!File.Exists(moddedAssemblyPath))
 				Program.Panic("Could not find the modded Terraria.exe");
 
-			ReaderParameters parameters = new ReaderParameters() { AssemblyResolver = GetAssemblyResolver() };
+			ModuleDefinition terraria = ModuleDefinition.ReadModule(terrariaAssemblyPath, ModuleUtils.DefaultParameters);
+			ModuleDefinition moddedTerraria = ModuleDefinition.ReadModule(moddedAssemblyPath, ModuleUtils.DefaultParameters);
 
-			ModuleDefinition terraria = ModuleDefinition.ReadModule(terrariaAssemblyPath, parameters);
-			ModuleDefinition moddedTerraria = ModuleDefinition.ReadModule(moddedAssemblyPath, parameters);
-
-			SerializingUtils.TerrariaModule = terraria;
+			ModuleUtils.Initialize(terraria);
 
 			int patchCount = 0;
 
@@ -54,40 +52,6 @@ namespace Terraweave.Differ.Patching
 			TestDeserializePatches();
 		}
 
-		public static IAssemblyResolver GetAssemblyResolver()
-		{
-			DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
-
-			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-			{
-				string[] xnaDirectories = new string[]
-				{
-				"Microsoft.Xna.Framework",
-				"Microsoft.Xna.Framework.Game",
-				"Microsoft.Xna.Framework.Graphics",
-				"Microsoft.Xna.Framework.Xact"
-				};
-
-				foreach (string xnaDirectory in xnaDirectories)
-				{
-					string finalDirectory = Directory.EnumerateDirectories(
-						Environment.ExpandEnvironmentVariables(
-							Path.Combine(
-							"%WINDIR%",
-							"Microsoft.NET",
-							"assembly",
-							"GAC_32",
-							xnaDirectory)
-							))
-							.First();
-
-					resolver.AddSearchDirectory(finalDirectory);
-				}
-			}
-
-			return resolver;
-		}
-
 		// this will be moved to installer eventually, just here for testing
 		public static void TestDeserializePatches()
 		{
@@ -115,9 +79,9 @@ namespace Terraweave.Differ.Patching
 			}
 
 			foreach (Patch patch in patches)
-				patch.Apply(SerializingUtils.TerrariaModule);
+				patch.Apply(ModuleUtils.TerrariaModule);
 
-			SerializingUtils.TerrariaModule.Write("PatchedTerraria.exe");
+			ModuleUtils.TerrariaModule.Write("PatchedTerraria.exe");
 		}
 
 		public static void Log(string message) => Console.WriteLine(message);

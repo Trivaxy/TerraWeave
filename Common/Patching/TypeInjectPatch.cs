@@ -13,7 +13,6 @@ namespace Terraweave.Common.Patching
 
 		public override void SerializePatch(BinaryWriter writer)
 			=> SerializingUtils.SerializeTypeDefinition(InjectedType, writer);
-		
 
 		public override Patch DeserializePatch(BinaryReader reader)
 		{
