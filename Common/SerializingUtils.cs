@@ -128,12 +128,33 @@ namespace Terraweave.Common
 			string @namespace = reader.ReadString();
 			string typeName = reader.ReadString();
 
-			ModuleDefinition module;
+			ModuleDefinition module = null;
 
 			if (@namespace.StartsWith("System"))
 				module = ModuleUtils.SystemModule;
+			else if (@namespace.StartsWith("Terraria"))
+				module = ModuleUtils.TerrariaModule;
 			else
-				module = ModuleDefinition.ReadModule(@namespace);
+				switch (@namespace)
+				{
+					case "Microsoft.Xna.Framework":
+						module = ModuleUtils.XnaModules[ModuleUtils.XnaDirectory.XnaFramework];
+						break;
+					case "Microsoft.Xna.Framework.Game":
+						module = ModuleUtils.XnaModules[ModuleUtils.XnaDirectory.XnaFrameworkDotGame];
+						break;
+					case "Microsoft.Xna.Framework.Graphics":
+						module = ModuleUtils.XnaModules[ModuleUtils.XnaDirectory.XnaFrameworkDotGraphics];
+						break;
+					case "Microsoft.Xna.Framework.Xact":
+						module = ModuleUtils.XnaModules[ModuleUtils.XnaDirectory.XnaFrameworkDotXact];
+						break;
+				}
+
+			if (module == null)
+			{
+				throw new NullReferenceException("Deserialized TypeReference's ModuleDefinition was null!");
+			}
 
 			TypeReference type = new TypeReference(
 				@namespace,
