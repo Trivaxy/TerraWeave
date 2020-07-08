@@ -109,12 +109,17 @@ namespace Terraweave.Common
 
 		public static void SerializeMethodReference(MethodReference method, BinaryWriter writer)
 		{
-			writer.Write(method.FullName);
+			writer.Write(method.Name);
 			SerializeTypeReference(method.ReturnType, writer);
+			SerializeTypeReference(method.DeclaringType, writer);
 		}
 
 		public static MethodReference DeserializeMethodReference(BinaryReader reader)
-			=> TerrariaModule.ImportReference(new MethodReference(reader.ReadString(), DeserializeTypeReference(reader)));
+			=> TerrariaModule.ImportReference(new MethodReference(
+				reader.ReadString(),
+				DeserializeTypeReference(reader),
+				DeserializeTypeReference(reader)
+				));
 
 		public static void SerializeFieldReference(FieldReference field, BinaryWriter writer)
 		{
@@ -130,6 +135,12 @@ namespace Terraweave.Common
 			writer.Write(method.Name);
 			writer.Write((ushort)method.Attributes);
 			SerializeTypeReference(method.ReturnType, writer);
+
+			writer.Write(method.Parameters.Count);
+
+			foreach (ParameterDefinition parameter in method.Parameters)
+				SerializeParameterDefinition(parameter, writer);
+
 			writer.Write(method.Body.Instructions.Count);
 
 			foreach (Instruction instruction in method.Body.Instructions)
@@ -143,6 +154,11 @@ namespace Terraweave.Common
 				 (MethodAttributes)reader.ReadUInt16(),
 				 DeserializeTypeReference(reader)
 				);
+
+			int parameterCount = reader.ReadInt32();
+
+			for (int i = 0; i < parameterCount; i++)
+				method.Parameters.Add(DeserializeParameterDefinition(reader));
 
 			int instructionCount = reader.ReadInt32();
 
@@ -319,9 +335,17 @@ namespace Terraweave.Common
 			=> new VariableDefinition(DeserializeTypeReference(reader));
 
 		public static void SerializeParameterDefinition(ParameterDefinition parameter, BinaryWriter writer)
-			=> SerializeTypeReference(parameter.ParameterType, writer);
+		{
+			writer.Write(parameter.Name);
+			writer.Write((ushort)parameter.Attributes);
+			SerializeTypeReference(parameter.ParameterType, writer);
+		}
 
 		public static ParameterDefinition DeserializeParameterDefinition(BinaryReader reader)
-			=> new ParameterDefinition(DeserializeTypeReference(reader));
+			=> new ParameterDefinition(
+				reader.ReadString(),
+				(ParameterAttributes)reader.ReadUInt16(),
+				DeserializeTypeReference(reader)
+				);
 	}
 }
