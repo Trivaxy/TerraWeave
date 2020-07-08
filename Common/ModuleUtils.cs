@@ -24,25 +24,28 @@ namespace Terraweave.Common
 		public static void Initialize(ModuleDefinition terraria)
 		{
 			TerrariaModule = terraria;
-			SystemModule = TerrariaModule.TypeSystem.CoreLibrary as ModuleDefinition;
+			SystemModule = ModuleDefinition.ReadModule($"{GetDirectoryFromGAC("mscorlib")}{Path.DirectorySeparatorChar}mscorlib.dll");
 
 			XnaModules = new Dictionary<XnaDirectory, ModuleDefinition>();
 
 			for (int i = 0; i < 4; i++)
 			{
-				string finalDirectory = Directory.EnumerateDirectories(
+				XnaModules.Add((XnaDirectory)i, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(xnaDirectories[i])}{Path.DirectorySeparatorChar}{xnaDirectories[i]}.dll"));
+			}
+		}
+
+		private static string GetDirectoryFromGAC(string dir)
+		{
+			return Directory.EnumerateDirectories(
 					Environment.ExpandEnvironmentVariables(
 						Path.Combine(
 						"%WINDIR%",
 						"Microsoft.NET",
 						"assembly",
 						"GAC_32",
-						xnaDirectories[i])
+						dir)
 						))
 						.First();
-
-				XnaModules.Add((XnaDirectory)i, ModuleDefinition.ReadModule(finalDirectory));
-			}
 		}
 
 		public enum XnaDirectory 
