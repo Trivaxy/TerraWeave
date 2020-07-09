@@ -5,6 +5,11 @@ namespace Terraweave.Differ
 {
     class Program
     {
+        static Program()
+        {
+            Console.WriteLine("Are there any IL differences?");
+        }
+
         public static void Main(string[] args)
         {
             if (args.Length == 0)
