@@ -162,7 +162,7 @@ namespace Terraweave.Common
 				module,
 				ModuleUtils.TerrariaModule);
 
-			return type;
+			return ModuleUtils.TerrariaModule.ImportReference(type);
 		}
 
 		public static void SerializeMethodReference(MethodReference method, BinaryWriter writer)
@@ -170,14 +170,30 @@ namespace Terraweave.Common
 			writer.Write(method.Name);
 			SerializeTypeReference(method.ReturnType, writer);
 			SerializeTypeReference(method.DeclaringType, writer);
+
+			writer.Write(method.Parameters.Count);
+
+			foreach (ParameterDefinition parameter in method.Parameters)
+				SerializeParameterDefinition(parameter, writer);
 		}
 
 		public static MethodReference DeserializeMethodReference(BinaryReader reader)
-			=> new MethodReference(
+		{
+			MethodReference mRef = new MethodReference(
 				reader.ReadString(),
 				DeserializeTypeReference(reader),
 				DeserializeTypeReference(reader)
 				);
+
+			int count = reader.ReadInt32();
+
+			for (int i = 0; i < count; i++)
+			{
+				mRef.Parameters.Add(DeserializeParameterDefinition(reader));
+			}
+
+			return mRef;
+		}
 
 		public static void SerializeFieldReference(FieldReference field, BinaryWriter writer)
 		{
@@ -244,9 +260,14 @@ namespace Terraweave.Common
 
 			writer.Write(property.MetadataToken.RID);
 
-			SerializeMethodDefinition(property.GetMethod, writer);
-			SerializeMethodDefinition(property.SetMethod, writer);
+			bool hasSetter = property.SetMethod != null;
 
+			writer.Write(hasSetter);
+
+			SerializeMethodDefinition(property.GetMethod, writer);
+
+			if (hasSetter)
+				SerializeMethodDefinition(property.SetMethod, writer);
 		}
 
 		public static PropertyDefinition DeserializePropertyDefinition(BinaryReader reader)
@@ -257,11 +278,16 @@ namespace Terraweave.Common
 				DeserializeTypeReference(reader)
 				)
 			{
-				MetadataToken = new MetadataToken(reader.ReadUInt32()),
-
-				GetMethod = DeserializeMethodDefinition(reader),
-				SetMethod = DeserializeMethodDefinition(reader)
+				MetadataToken = new MetadataToken(reader.ReadUInt32())
 			};
+
+			bool hasSetter = reader.ReadBoolean();
+
+
+			property.GetMethod = DeserializeMethodDefinition(reader);
+
+			if (hasSetter)
+				property.SetMethod = DeserializeMethodDefinition(reader);
 
 			return property;
 		}

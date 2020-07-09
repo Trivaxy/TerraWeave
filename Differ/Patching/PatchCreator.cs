@@ -2,6 +2,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
+using System.Threading.Tasks;
 using Terraweave.Common;
 using Terraweave.Common.Patching;
 
@@ -17,8 +19,8 @@ namespace Terraweave.Differ.Patching
 			if (!File.Exists(moddedAssemblyPath))
 				Program.Panic("Could not find the modded Terraria.exe");
 
-			ModuleDefinition terraria = ModuleDefinition.ReadModule(terrariaAssemblyPath);
-			ModuleDefinition moddedTerraria = ModuleDefinition.ReadModule(moddedAssemblyPath);
+			ModuleDefinition terraria = ModuleDefinition.ReadModule(terrariaAssemblyPath, ModuleUtils.DefaultParameters);
+			ModuleDefinition moddedTerraria = ModuleDefinition.ReadModule(moddedAssemblyPath, ModuleUtils.DefaultParameters);
 
 			ModuleUtils.Initialize(terraria);
 

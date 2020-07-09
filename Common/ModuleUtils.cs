@@ -24,6 +24,7 @@ namespace Terraweave.Common
 		public static void Initialize(ModuleDefinition terraria)
 		{
 			TerrariaModule = terraria;
+
 			SystemModule = ModuleDefinition.ReadModule($"{GetDirectoryFromGAC("mscorlib")}{Path.DirectorySeparatorChar}mscorlib.dll");
 
 			XnaModules = new Dictionary<XnaDirectory, ModuleDefinition>();
@@ -32,6 +33,27 @@ namespace Terraweave.Common
 			{
 				XnaModules.Add((XnaDirectory)i, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(xnaDirectories[i])}{Path.DirectorySeparatorChar}{xnaDirectories[i]}.dll"));
 			}
+		}
+
+		public static ReaderParameters DefaultParameters = new ReaderParameters()
+		{
+			AssemblyResolver = GetAssemblyResolver()
+		};
+
+		// Well played assembly resolver, you have escaped death this time
+		public static IAssemblyResolver GetAssemblyResolver()
+		{
+			DefaultAssemblyResolver resolver = new DefaultAssemblyResolver();
+
+			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+			{
+				foreach (string xnaDirectory in xnaDirectories)
+				{
+					resolver.AddSearchDirectory(GetDirectoryFromGAC(xnaDirectory));
+				}
+			}
+
+			return resolver;
 		}
 
 		private static string GetDirectoryFromGAC(string dir)
