@@ -9,30 +9,33 @@ namespace Terraweave.Common
 	public static class ModuleUtils
 	{
 		public static ModuleDefinition TerrariaModule;
+		public static ModuleDefinition ModdedModule;
 		public static ModuleDefinition SystemModule;
 
-		public static Dictionary<XnaDirectory, ModuleDefinition> XnaModules;
+		public static Dictionary<TerrariaDependency, ModuleDefinition> DependencyModules = new Dictionary<TerrariaDependency, ModuleDefinition>();
 
-		private static readonly string[] xnaDirectories = new string[]
+		private static readonly Dictionary<string, TerrariaDependency> xnaDependencies = new Dictionary<string, TerrariaDependency>()
 		{
-			"Microsoft.Xna.Framework",
-			"Microsoft.Xna.Framework.Game",
-			"Microsoft.Xna.Framework.Graphics",
-			"Microsoft.Xna.Framework.Xact"
+			{ "Microsoft.Xna.Framework", TerrariaDependency.XnaFramework },
+			{ "Microsoft.Xna.Framework.Game", TerrariaDependency.XnaFrameworkDotGame },
+			{ "Microsoft.Xna.Framework.Graphics", TerrariaDependency.XnaFrameworkDotGraphics },
+			{ "Microsoft.Xna.Framework.Xact", TerrariaDependency.XnaFrameworkDotXact }
 		};
 
-		public static void Initialize(ModuleDefinition terraria)
+		public static void Initialize(string workingDirectory)
 		{
-			TerrariaModule = terraria;
+			TerrariaModule = GetWorkingModule("Terraria.exe");
+			ModdedModule = GetWorkingModule("TerrariaModified.exe");
 
 			SystemModule = ModuleDefinition.ReadModule($"{GetDirectoryFromGAC("mscorlib")}{Path.DirectorySeparatorChar}mscorlib.dll");
 
-			XnaModules = new Dictionary<XnaDirectory, ModuleDefinition>();
+			foreach (var xnaDependency in xnaDependencies)
+				DependencyModules.Add(xnaDependency.Value, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(xnaDependency.Key)}{Path.DirectorySeparatorChar}{xnaDependency.Key}.dll"));
 
-			for (int i = 0; i < 4; i++)
-			{
-				XnaModules.Add((XnaDirectory)i, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(xnaDirectories[i])}{Path.DirectorySeparatorChar}{xnaDirectories[i]}.dll"));
-			}
+			DependencyModules[TerrariaDependency.ReLogic] = GetWorkingModule("ReLogic.dll");
+
+			ModuleDefinition GetWorkingModule(string file)
+				=> ModuleDefinition.ReadModule(Path.Combine(workingDirectory, file), DefaultParameters);
 		}
 
 		public static ReaderParameters DefaultParameters = new ReaderParameters()
@@ -47,7 +50,7 @@ namespace Terraweave.Common
 
 			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
 			{
-				foreach (string xnaDirectory in xnaDirectories)
+				foreach (string xnaDirectory in xnaDependencies.Keys)
 				{
 					resolver.AddSearchDirectory(GetDirectoryFromGAC(xnaDirectory));
 				}
@@ -70,12 +73,17 @@ namespace Terraweave.Common
 						.First();
 		}
 
-		public enum XnaDirectory 
+		public enum TerrariaDependency
 		{ 
 			XnaFramework,
 			XnaFrameworkDotGame,
 			XnaFrameworkDotGraphics,
-			XnaFrameworkDotXact
+			XnaFrameworkDotXact,
+			ReLogic,
+			ReLogicNative,
+			SteamAPI,
+			LogitechWeirdThing,
+			CUESDK
 		}
 	}
 }

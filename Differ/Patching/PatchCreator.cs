@@ -11,23 +11,20 @@ namespace Terraweave.Differ.Patching
 {
 	public static class PatchCreator
 	{
-		public static void Start(string terrariaAssemblyPath, string moddedAssemblyPath)
+		public static void Start(string workingDirectory)
 		{
-			if (!File.Exists(terrariaAssemblyPath))
+			if (!File.Exists(Path.Combine(workingDirectory, "Terraria.exe")))
 				Program.Panic("Could not find the vanilla Terraria.exe");
 
-			if (!File.Exists(moddedAssemblyPath))
-				Program.Panic("Could not find the modded Terraria.exe");
+			if (!File.Exists(Path.Combine(workingDirectory, "TerrariaModified.exe")))
+				Program.Panic("Could not find the modded Terraria.exe (must be named TerrariaModified.exe)");
 
-			ModuleDefinition terraria = ModuleDefinition.ReadModule(terrariaAssemblyPath, ModuleUtils.DefaultParameters);
-			ModuleDefinition moddedTerraria = ModuleDefinition.ReadModule(moddedAssemblyPath, ModuleUtils.DefaultParameters);
-
-			ModuleUtils.Initialize(terraria);
+			ModuleUtils.Initialize(workingDirectory);
 
 			int patchCount = 0;
 
-			TypeDefinition[] injectedTypes = moddedTerraria.GetTypes()
-				.Where(type => terraria.GetType(type.FullName) == null)
+			TypeDefinition[] injectedTypes = ModuleUtils.ModdedModule.GetTypes()
+				.Where(type => ModuleUtils.TerrariaModule.GetType(type.FullName) == null)
 				.ToArray();
 
 			patchCount += injectedTypes.Count();
