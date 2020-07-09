@@ -14,14 +14,15 @@ namespace Terraweave.Differ
         {
             if (args.Length == 0)
             {
-                Console.WriteLine("Usage: tweavediff [path to unmodified exe] [patch to modded exe]");
+                Console.WriteLine("Usage: tweavediff [path to working directory]");
+                Console.WriteLine("The working directory must contain:");
+                Console.WriteLine("- Terraria.exe (vanilla, unmodified exe)");
+                Console.WriteLine("- TerrariaModified.exe (your modified exe)");
+                Console.WriteLine("- All the required dependencies (such as Relogic.dll, CSteamWorks.dll, etc)");
                 Environment.Exit(0);
             }
 
-            if (args.Length < 2)
-                Panic("Did not specify modded terraria path");
-
-            PatchCreator.Start(args[0], args[1]);
+            PatchCreator.Start(args[0]);
         }
 
         public static void Panic(string message)
