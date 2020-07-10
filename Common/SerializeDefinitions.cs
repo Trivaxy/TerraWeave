@@ -10,14 +10,35 @@ namespace Terraweave.Common
 	{
 		public static void SerializeTypeDefinition(TypeDefinition type, BinaryWriter writer)
 		{
-			writer.Write(type.FullName);
+			writer.Write(type.Namespace);
+			writer.Write(type.Name);
 			writer.Write((uint)type.Attributes);
+
+			writer.Write(type.HasNestedTypes);
+
+			if (type.HasNestedTypes)
+			{
+				writer.Write(type.NestedTypes.Count);
+
+				foreach (TypeDefinition nestedType in type.NestedTypes)
+					SerializeTypeDefinition(nestedType, writer);
+			}
 
 			bool hasParent = !type.IsInterface && type.BaseType.FullName != "System.Object";
 			writer.Write(hasParent);
 
 			if (hasParent)
 				SerializeTypeReference(type.BaseType, writer);
+
+			writer.Write(type.HasGenericParameters);
+
+			if (type.HasGenericParameters)
+			{
+				writer.Write(type.GenericParameters.Count);
+
+				foreach (GenericParameter generic in type.GenericParameters)
+					SerializeGenericParameter(generic, writer);
+			}
 
 			writer.Write(type.Fields.Count);
 
@@ -37,16 +58,24 @@ namespace Terraweave.Common
 
 		public static TypeDefinition DeserializeTypeDefinition(BinaryReader reader)
 		{
+			string @namespace = reader.ReadString();
 			string typeName = reader.ReadString();
-			string @namespace = typeName.Split('.')[0];
 
 			TypeAttributes attributes = (TypeAttributes)reader.ReadUInt32();
 
 			TypeDefinition type = new TypeDefinition(
 				@namespace,
-				typeName.Substring(@namespace.Length + 1),
+				typeName,
 				attributes
 				);
+
+			if (reader.ReadBoolean())
+			{
+				int nestedTypeCount = reader.ReadInt32();
+
+				for (int i = 0; i < nestedTypeCount; i++)
+					type.NestedTypes.Add(DeserializeTypeDefinition(reader));
+			}
 
 			if (reader.ReadBoolean())
 				type.BaseType = DeserializeTypeReference(reader);
@@ -54,6 +83,14 @@ namespace Terraweave.Common
 				type.BaseType = null;
 			else
 				type.BaseType = ModuleUtils.TerrariaModule.ImportReference(typeof(object));
+
+			if (reader.ReadBoolean())
+			{
+				int genericParameterCount = reader.ReadInt32();
+
+				for (int i = 0; i < genericParameterCount; i++)
+					type.GenericParameters.Add(DeserializeGenericParameter(reader));
+			}
 
 			int fieldCount = reader.ReadInt32();
 
@@ -71,7 +108,9 @@ namespace Terraweave.Common
 			{
 				PropertyDefinition property = DeserializePropertyDefinition(reader);
 
-				property.GetMethod = type.Methods.Where(m => m.Name == "get_" + property.Name).First();
+				string genericTypeName = type.Name.Contains('<') && !type.Name.Contains("AnonymousType") ? type.FullName + "." : "";
+
+				property.GetMethod = type.Methods.Where(m => m.Name.EndsWith("get_" + property.Name)).First();
 
 				MethodDefinition setter = type.Methods.Where(m => m.Name == "set_" + property.Name).FirstOrDefault();
 
@@ -110,15 +149,30 @@ namespace Terraweave.Common
 
 			writer.Write((ushort)method.SemanticsAttributes);
 
+			writer.Write(method.HasGenericParameters);
+
+			if (method.HasGenericParameters)
+			{
+				writer.Write(method.GenericParameters.Count);
+
+				foreach (GenericParameter generic in method.GenericParameters)
+					SerializeGenericParameter(generic, writer);
+			}
+
 			writer.Write(method.Parameters.Count);
 
 			foreach (ParameterDefinition parameter in method.Parameters)
 				SerializeParameterDefinition(parameter, writer);
 
-			writer.Write(method.Body.Instructions.Count);
+			writer.Write(method.HasBody);
 
-			foreach (Instruction instruction in method.Body.Instructions)
-				SerializeInstruction(instruction, writer);
+			if (method.HasBody)
+			{
+				writer.Write(method.Body.Instructions.Count);
+
+				foreach (Instruction instruction in method.Body.Instructions)
+					SerializeInstruction(instruction, writer);
+			}
 		}
 
 		public static MethodDefinition DeserializeMethodDefinition(BinaryReader reader)
@@ -131,22 +185,33 @@ namespace Terraweave.Common
 
 			method.SemanticsAttributes = (MethodSemanticsAttributes)reader.ReadUInt16();
 
+			if (reader.ReadBoolean())
+			{
+				int genericParameterCount = reader.ReadInt32();
+
+				for (int i = 0; i < genericParameterCount; i++)
+					method.GenericParameters.Add(DeserializeGenericParameter(reader));
+			}
+
 			int parameterCount = reader.ReadInt32();
 
 			for (int i = 0; i < parameterCount; i++)
 				method.Parameters.Add(DeserializeParameterDefinition(reader));
 
-			int instructionCount = reader.ReadInt32();
+			if (reader.ReadBoolean())
+			{
+				int instructionCount = reader.ReadInt32();
 
-			for (int i = 0; i < instructionCount; i++)
-				method.Body.Instructions.Add(DeserializeInstruction(reader));
+				for (int i = 0; i < instructionCount; i++)
+					method.Body.Instructions.Add(DeserializeInstruction(reader));
+			}
 
 			return method;
 		}
 
 		public static void SerializePropertyDefinition(PropertyDefinition property, BinaryWriter writer)
 		{
-			writer.Write(property.Name);
+			writer.Write(property.Name.Contains('.') ? property.Name.Split('.').Last() : property.Name);
 			writer.Write((ushort)property.Attributes);
 			SerializeTypeReference(property.PropertyType, writer);
 		}
@@ -207,6 +272,8 @@ namespace Terraweave.Common
 				SerializeCallSite(operand as CallSite, writer);
 			else if (operandType == OperandType.InlineVar || operandType == OperandType.ShortInlineVar)
 				SerializeVariableDefinition(operand as VariableDefinition, writer);
+			else if (operandType == OperandType.InlineTok)
+				SerializeMetadataTokenProvider(operand as IMetadataTokenProvider, writer);
 			else if (operandType == OperandType.InlineArg || operandType == OperandType.ShortInlineArg)
 				SerializeParameterDefinition(operand as ParameterDefinition, writer);
 			else if (operandType == OperandType.InlineBrTarget || operandType == OperandType.ShortInlineBrTarget)
@@ -268,12 +335,16 @@ namespace Terraweave.Common
 				operand = DeserializeParameterDefinition(reader);
 			else if (operandType == OperandType.InlineBrTarget || operandType == OperandType.ShortInlineBrTarget)
 				operand = DeserializeInstruction(reader);
+			else if (operandType == OperandType.InlineTok)
+				operand = DeserializeMetadataTokenProvider(reader);
 			else if (operandType == OperandType.InlineSwitch)
 			{
 				Instruction[] instructions = new Instruction[reader.ReadInt32()];
 
 				for (int i = 0; i < instructions.Length; i++)
 					instructions[i] = DeserializeInstruction(reader);
+
+				operand = instructions;
 			}
 
 			OpCode finalOpCode = CodeToOpCode[opCode];
@@ -309,6 +380,10 @@ namespace Terraweave.Common
 				return Instruction.Create(finalOpCode, operand as VariableDefinition);
 			else if (operandObjType == typeof(ParameterDefinition))
 				return Instruction.Create(finalOpCode, operand as ParameterDefinition);
+			else if (operand is IMetadataTokenProvider)
+			{
+				return Instruction.Create(finalOpCode, operand as FieldDefinition);
+			}
 			else if (operandObjType == typeof(Instruction))
 				return Instruction.Create(finalOpCode, operand as Instruction);
 			else if (operandObjType == typeof(Instruction[]))
@@ -343,5 +418,80 @@ namespace Terraweave.Common
 				(ParameterAttributes)reader.ReadUInt16(),
 				DeserializeTypeReference(reader)
 				);
+
+		public static void SerializeGenericParameter(GenericParameter generic, BinaryWriter writer)
+			=> SerializeTypeReference((TypeReference)generic.Owner, writer);
+
+		public static GenericParameter DeserializeGenericParameter(BinaryReader reader)
+			=> new GenericParameter(DeserializeTypeReference(reader));
+
+		// i hate you, ldtoken
+		public static void SerializeMetadataTokenProvider(IMetadataTokenProvider tokenProvider, BinaryWriter writer)
+		{
+			Type type = tokenProvider.GetType();
+
+			if (type == typeof(TypeReference))
+			{
+				writer.Write((byte)0);
+				SerializeTypeReference(tokenProvider as TypeReference, writer);
+			}
+			else if (type == typeof(MethodReference))
+			{
+				writer.Write((byte)1);
+				SerializeMethodReference(tokenProvider as MethodReference, writer);
+			}
+			else if (type == typeof(FieldReference))
+			{
+				writer.Write((byte)2);
+				SerializeFieldReference(tokenProvider as FieldReference, writer);
+			}
+			else if (type == typeof(TypeDefinition))
+			{
+				writer.Write((byte)3);
+				SerializeTypeDefinition(tokenProvider as TypeDefinition, writer);
+			}
+			else if (type == typeof(MethodDefinition))
+			{
+				writer.Write((byte)4);
+				SerializeMethodDefinition(tokenProvider as MethodDefinition, writer);
+			}
+			else if (type == typeof(FieldDefinition))
+			{
+				writer.Write((byte)5);
+				SerializeFieldDefinition(tokenProvider as FieldDefinition, writer);
+			}
+		}
+
+		public static T DeserializeMetadataTokenProvider<T>(BinaryReader reader)
+			where T : IMetadataTokenProvider
+			=> (T)DeserializeMetadataTokenProvider(reader);
+
+		public static IMetadataTokenProvider DeserializeMetadataTokenProvider(BinaryReader reader)
+		{
+			byte providerType = reader.ReadByte();
+
+			switch (providerType)
+			{
+				case 0:
+					return DeserializeTypeReference(reader);
+
+				case 1:
+					return DeserializeMethodReference(reader);
+
+				case 2:
+					return DeserializeFieldReference(reader);
+
+				case 3:
+					return DeserializeTypeDefinition(reader);
+
+				case 4:
+					return DeserializeMethodDefinition(reader);
+
+				case 5:
+					return DeserializeFieldDefinition(reader);
+			}
+
+			throw new Exception("Could not deserialize IMetaDataTokenProvider. This should never happen");
+		}
 	}
 }

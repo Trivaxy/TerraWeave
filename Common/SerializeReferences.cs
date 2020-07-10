@@ -1,6 +1,5 @@
 ﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
-using Mono.Cecil.Rocks;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -35,30 +34,24 @@ namespace Terraweave.Common
 			string @namespace = reader.ReadString();
 			string typeName = reader.ReadString();
 
-			ModuleDefinition module = null;
+			ModuleDefinition module;
 
-			if (@namespace.StartsWith("System"))
-				module = ModuleUtils.SystemModule;
-			else if (@namespace.StartsWith("Terraria"))
+			if (ModuleUtils.MscorlibModule.Types.Select(t => t.Namespace).Contains(@namespace))
+				module = ModuleUtils.MscorlibModule;
+			else if (@namespace.StartsWith("System."))
+				module = ModuleUtils.DependencyModules[@namespace];
+			else if (@namespace.StartsWith("Terraria") || @namespace == "")
 				module = ModuleUtils.TerrariaModule;
-			else if (@namespace.StartsWith("ReLogic"))
-				module = ModuleUtils.DependencyModules[ModuleUtils.TerrariaDependency.ReLogic];
+			else if (@namespace == "ReLogic.Content")
+				module = ModuleUtils.DependencyModules["ReLogic"];
+			else if (@namespace == "Microsoft.Xna.Framework.Audio")
+				module = ModuleUtils.DependencyModules["Microsoft.Xna.Framework"];
 			else
-				switch (@namespace)
-				{
-					case "Microsoft.Xna.Framework":
-						module = ModuleUtils.DependencyModules[ModuleUtils.TerrariaDependency.XnaFramework];
-						break;
-					case "Microsoft.Xna.Framework.Game":
-						module = ModuleUtils.DependencyModules[ModuleUtils.TerrariaDependency.XnaFrameworkDotGame];
-						break;
-					case "Microsoft.Xna.Framework.Graphics":
-						module = ModuleUtils.DependencyModules[ModuleUtils.TerrariaDependency.XnaFrameworkDotGraphics];
-						break;
-					case "Microsoft.Xna.Framework.Xact":
-						module = ModuleUtils.DependencyModules[ModuleUtils.TerrariaDependency.XnaFrameworkDotXact];
-						break;
-				}
+			{
+				if (!ModuleUtils.DependencyModules.ContainsKey(@namespace))
+					throw new Exception("Dependency unknown: " + @namespace);
+				module = ModuleUtils.DependencyModules[@namespace];
+			}
 
 			if (module == null)
 			{
