@@ -10,16 +10,34 @@ namespace Terraweave.Common
 	{
 		public static ModuleDefinition TerrariaModule;
 		public static ModuleDefinition ModdedModule;
-		public static ModuleDefinition SystemModule;
+		public static ModuleDefinition MscorlibModule;
 
-		public static Dictionary<TerrariaDependency, ModuleDefinition> DependencyModules = new Dictionary<TerrariaDependency, ModuleDefinition>();
+		public static Dictionary<string, ModuleDefinition> DependencyModules = new Dictionary<string, ModuleDefinition>();
 
-		private static readonly Dictionary<string, TerrariaDependency> xnaDependencies = new Dictionary<string, TerrariaDependency>()
+		private static string[] dependencyBlacklist = new string[]
 		{
-			{ "Microsoft.Xna.Framework", TerrariaDependency.XnaFramework },
-			{ "Microsoft.Xna.Framework.Game", TerrariaDependency.XnaFrameworkDotGame },
-			{ "Microsoft.Xna.Framework.Graphics", TerrariaDependency.XnaFrameworkDotGraphics },
-			{ "Microsoft.Xna.Framework.Xact", TerrariaDependency.XnaFrameworkDotXact }
+			"Common.dll",
+			"Differ.dll",
+			"Mono.Cecil.dll",
+			"Mono.Cecil.Mdb.dll",
+			"Mono.Cecil.Pdb.dll",
+			"Mono.Cecil.Rocks.dll",
+			"steam_api.dll",
+			"CSteamworks.dll"
+		};
+
+		private static string[] xnaDirectories = new string[]
+		{
+			"Microsoft.Xna.Framework",
+			"Microsoft.Xna.Framework.Game",
+			"Microsoft.Xna.Framework.Graphics",
+			"Microsoft.Xna.Framework.Xact"
+		};
+
+		private static string[] importantSystemModules = new string[]
+		{
+			"System.ComponentModel",
+			"System.Text.RegularExpressions"
 		};
 
 		public static void Initialize(string workingDirectory)
@@ -27,12 +45,27 @@ namespace Terraweave.Common
 			TerrariaModule = GetWorkingModule("Terraria.exe");
 			ModdedModule = GetWorkingModule("TerrariaModified.exe");
 
-			SystemModule = ModuleDefinition.ReadModule($"{GetDirectoryFromGAC("mscorlib")}{Path.DirectorySeparatorChar}mscorlib.dll");
+			MscorlibModule = ModuleDefinition.ReadModule($"{GetDirectoryFromGAC("mscorlib")}{Path.DirectorySeparatorChar}mscorlib.dll");
 
-			foreach (var xnaDependency in xnaDependencies)
-				DependencyModules.Add(xnaDependency.Value, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(xnaDependency.Key)}{Path.DirectorySeparatorChar}{xnaDependency.Key}.dll"));
+			foreach (string directory in xnaDirectories)
+				DependencyModules.Add(directory, ModuleDefinition.ReadModule($"{GetDirectoryFromGAC(directory)}{Path.DirectorySeparatorChar}{directory}.dll"));
 
-			DependencyModules[TerrariaDependency.ReLogic] = GetWorkingModule("ReLogic.dll");
+			var dllPaths = Directory.EnumerateFiles(
+				Directory.EnumerateDirectories(Environment.ExpandEnvironmentVariables(
+					Path.Combine("%WINDIR%", "Microsoft.NET", "Framework")))
+					.First(dir => Path.GetFileName(dir).StartsWith("v4.0")))
+				.Where(file => Path.GetFileName(file).StartsWith("System.") && file.EndsWith(".dll"))
+				.Where(file => importantSystemModules.Contains(Path.GetFileNameWithoutExtension(file)));
+
+			foreach (string dll in dllPaths)
+				DependencyModules.Add(Path.GetFileNameWithoutExtension(dll), ModuleDefinition.ReadModule(dll));
+
+			foreach (string moduleName in Directory.EnumerateFiles(workingDirectory)
+				.Where(file => file.EndsWith(".dll") && !dependencyBlacklist.Contains(Path.GetFileName(file))))
+			{
+				ModuleDefinition module = GetWorkingModule(moduleName);
+				DependencyModules[Path.GetFileNameWithoutExtension(module.Name)] = module;
+			}
 
 			ModuleDefinition GetWorkingModule(string file)
 				=> ModuleDefinition.ReadModule(Path.Combine(workingDirectory, file), DefaultParameters);
@@ -50,7 +83,7 @@ namespace Terraweave.Common
 
 			if (Environment.OSVersion.Platform == PlatformID.Win32NT)
 			{
-				foreach (string xnaDirectory in xnaDependencies.Keys)
+				foreach (string xnaDirectory in xnaDirectories)
 				{
 					resolver.AddSearchDirectory(GetDirectoryFromGAC(xnaDirectory));
 				}
@@ -71,19 +104,6 @@ namespace Terraweave.Common
 						dir)
 						))
 						.First();
-		}
-
-		public enum TerrariaDependency
-		{ 
-			XnaFramework,
-			XnaFrameworkDotGame,
-			XnaFrameworkDotGraphics,
-			XnaFrameworkDotXact,
-			ReLogic,
-			ReLogicNative,
-			SteamAPI,
-			LogitechWeirdThing,
-			CUESDK
 		}
 	}
 }
