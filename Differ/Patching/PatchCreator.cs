@@ -2,8 +2,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Threading.Tasks;
 using Terraweave.Common;
 using Terraweave.Common.Patching;
 
@@ -24,10 +22,20 @@ namespace Terraweave.Differ.Patching
 			int patchCount = 0;
 
 			TypeDefinition[] injectedTypes = ModuleUtils.ModdedModule.GetTypes()
-				.Where(type => ModuleUtils.TerrariaModule.GetType(type.FullName) == null)
+				.Where(type =>
+				!type.Name.Contains("<")
+				&& ModuleUtils.TerrariaModule.GetType(type.FullName) == null)
 				.ToArray();
 
-			patchCount += injectedTypes.Count();
+			TypeDefinition[] injectedNestedTypes = injectedTypes
+				.Where(type =>
+				type.IsNested
+				&& ModuleUtils.TerrariaModule.GetType(type.DeclaringType.FullName) != null)
+				.ToArray();
+
+			injectedTypes = injectedTypes.Where(type => !type.IsNested).ToArray();
+
+			patchCount += injectedTypes.Length + injectedNestedTypes.Length;
 
 			using (MemoryStream stream = new MemoryStream())
 			{
@@ -42,6 +50,13 @@ namespace Terraweave.Differ.Patching
 						Log($"Detected type to inject: {type.FullName}");
 						writer.Write(PatchTypes.TypeInject);
 						new TypeInjectPatch(type).SerializePatch(writer);
+					}
+
+					foreach (TypeDefinition type in injectedNestedTypes)
+					{
+						Log($"Detected nested type to inject: {type.FullName}");
+						writer.Write(PatchTypes.NestedTypeInject);
+						new NestedTypeInjectPatch(type.DeclaringType, type).SerializePatch(writer);
 					}
 				}
 
@@ -73,6 +88,10 @@ namespace Terraweave.Differ.Patching
 						case PatchTypes.TypeInject:
 							patches[i] = new TypeInjectPatch(reader);
 							break;
+
+						case PatchTypes.NestedTypeInject:
+							patches[i] = new NestedTypeInjectPatch(reader);
+							break;
 					}
 				}
 			}
@@ -80,7 +99,7 @@ namespace Terraweave.Differ.Patching
 			foreach (Patch patch in patches)
 				patch.Apply(ModuleUtils.TerrariaModule);
 
-			ModuleUtils.TerrariaModule.Write("PatchedTerraria.exe");
+			ModuleUtils.TerrariaModule.Write("PatchedTerraria.exe", new WriterParameters() { DeterministicMvid = false } );
 		}
 
 		public static void Log(string message) => Console.WriteLine(message);
