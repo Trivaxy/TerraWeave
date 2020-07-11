@@ -1,7 +1,5 @@
 ﻿using Mono.Cecil;
-using Mono.Cecil.Cil;
 using System;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 
@@ -9,20 +7,6 @@ namespace Terraweave.Common
 {
 	public static partial class SerializingUtils
 	{
-		public static ReadOnlyDictionary<Code, OpCode> CodeToOpCode = new ReadOnlyDictionary<Code, OpCode>(
-			typeof(OpCodes)
-			.GetFields()
-			.AsEnumerable()
-			.ToDictionary(field =>
-			{
-				if (!Enum.TryParse(field.Name, out Code code))
-					throw new Exception("Failed to construct Code-OpCode dictionary");
-
-				return code;
-			},
-			field => (OpCode)field.GetValue(null))
-			);
-
 		public static void SerializeTypeReference(TypeReference type, BinaryWriter writer)
 		{
 			writer.Write(type.Namespace);
