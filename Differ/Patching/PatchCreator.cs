@@ -99,7 +99,7 @@ namespace Terraweave.Differ.Patching
 			foreach (Patch patch in patches)
 				patch.Apply(ModuleUtils.TerrariaModule);
 
-			ModuleUtils.TerrariaModule.Write("PatchedTerraria.exe", new WriterParameters() { DeterministicMvid = false } );
+			ModuleUtils.TerrariaModule.Write("PatchedTerraria.exe");
 		}
 
 		public static void Log(string message) => Console.WriteLine(message);
