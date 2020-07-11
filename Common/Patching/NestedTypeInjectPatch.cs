@@ -1,4 +1,5 @@
 ﻿using Mono.Cecil;
+using System;
 using System.IO;
 
 namespace Terraweave.Common.Patching
