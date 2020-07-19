@@ -1,35 +1,14 @@
 ﻿using Mono.Cecil;
-using Mono.Cecil.Cil;
 using System;
 using System.IO;
+using Terraweave.Common.Data;
 
 namespace Terraweave.Common.Patching
 {
 	public class MethodModifyPatch : Patch
 	{
-		public enum InstructionAction : byte
-		{
-			Add,
-			Remove,
-			Modify
-		}
-
-		public struct MethodChange
-		{
-			public InstructionAction Action;
-			public Instruction Instruction;
-			public int Index;
-
-			public MethodChange(InstructionAction action, Instruction instruction, int index)
-			{
-				Action = action;
-				Instruction = instruction;
-				Index = index;
-			}
-		}
-
-		public static MethodReference Method;
-		public static MethodChange[] Changes;
+		public MethodReference Method;
+		public MethodChange[] Changes;
 
 		public MethodModifyPatch(BinaryReader reader) => DeserializePatch(reader);
 
@@ -75,7 +54,7 @@ namespace Terraweave.Common.Patching
 			foreach (MethodChange change in Changes)
 				switch (change.Action)
 				{
-					case InstructionAction.Add:
+					case InstructionAction.Insert:
 						method.Body.Instructions.Insert(change.Index, change.Instruction);
 						break;
 

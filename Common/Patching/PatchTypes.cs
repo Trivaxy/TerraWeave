@@ -6,5 +6,6 @@ namespace Terraweave.Common.Patching
 	{
 		public const byte TypeInject = 0;
 		public const byte NestedTypeInject = 1;
+		public const byte MethodModify = 2;
 	}
 }

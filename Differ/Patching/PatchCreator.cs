@@ -1,8 +1,11 @@
 ﻿using Mono.Cecil;
+using Mono.Cecil.Cil;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Terraweave.Common;
+using Terraweave.Common.Data;
 using Terraweave.Common.Patching;
 
 namespace Terraweave.Differ.Patching
@@ -35,7 +38,52 @@ namespace Terraweave.Differ.Patching
 
 			injectedTypes = injectedTypes.Where(type => !type.IsNested).ToArray();
 
-			patchCount += injectedTypes.Length + injectedNestedTypes.Length;
+			Log("Scanning for modified methods. This will take a while...");
+
+			MethodDefinition[] vanillaMethods = ModuleUtils.TerrariaModule.Types
+				.SelectMany(type => type.Methods)
+				.ToArray();
+
+			MethodDefinition[] moddedMethods = ModuleUtils.ModdedModule.Types
+				.SelectMany(type => type.Methods)
+				.ToArray();
+
+			List<MethodModifyPatch> methodModifyPatches = new List<MethodModifyPatch>();
+
+			foreach (MethodDefinition moddedMethod in moddedMethods)
+			{
+				MethodDefinition vanillaMethod = vanillaMethods.Where(method => moddedMethod.FullName == method.FullName)
+					.FirstOrDefault();
+
+				if (vanillaMethod == null)
+					continue;
+
+				Instruction[] vanillaInstructions = vanillaMethod.Body.Instructions.ToArray();
+				Instruction[] moddedInstructions = moddedMethod.Body.Instructions.ToArray();
+
+				List<MethodChange> changes = new List<MethodChange>();
+
+				for (int i = 0; i < moddedInstructions.Length; i++)
+				{
+					if (vanillaInstructions[i] != moddedInstructions[i])
+					{
+						if (vanillaInstructions[i] == moddedInstructions[i + 1])
+							changes.Add(new MethodChange(InstructionAction.Insert, moddedInstructions[i], i));
+						else if (vanillaInstructions[i].OpCode == moddedInstructions[i].OpCode)
+							changes.Add(new MethodChange(InstructionAction.Modify, moddedInstructions[i], i));
+						else
+							changes.Add(new MethodChange(InstructionAction.Remove, null, i));
+
+						i++;
+						continue;
+					}
+				}
+
+				if (changes.Count != 0)
+					methodModifyPatches.Add(new MethodModifyPatch(vanillaMethod, changes.ToArray()));
+			}
+
+			patchCount += injectedTypes.Length + injectedNestedTypes.Length + methodModifyPatches.Count;
 
 			using (MemoryStream stream = new MemoryStream())
 			{
@@ -57,6 +105,13 @@ namespace Terraweave.Differ.Patching
 						Log($"Detected nested type to inject: {type.FullName}");
 						writer.Write(PatchTypes.NestedTypeInject);
 						new NestedTypeInjectPatch(type.DeclaringType, type).SerializePatch(writer);
+					}
+
+					foreach (MethodModifyPatch patch in methodModifyPatches)
+					{
+						Log($"Detected modified method: {patch.Method}");
+						writer.Write(PatchTypes.MethodModify);
+						patch.SerializePatch(writer);
 					}
 				}
 
@@ -91,6 +146,10 @@ namespace Terraweave.Differ.Patching
 
 						case PatchTypes.NestedTypeInject:
 							patches[i] = new NestedTypeInjectPatch(reader);
+							break;
+
+						case PatchTypes.MethodModify:
+							patches[i] = new MethodModifyPatch(reader);
 							break;
 					}
 				}
